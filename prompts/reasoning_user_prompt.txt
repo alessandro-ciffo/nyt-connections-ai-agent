@@ -1,0 +1,3 @@
+PUZZLE_INPUT: {puzzle_input}
+PREVIOUS_GUESSES: {guesses}
+OUTPUT:
