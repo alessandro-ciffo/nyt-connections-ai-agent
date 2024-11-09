@@ -35,4 +35,6 @@ Your task is to:
 1. Analyze the correct groups in the history of guesses. You must exclude these guesses from your reasoning, as a word cannot be used in more than one group.
 2. Analyze the wrong groups in the history of guesses. You must not guess the same wrong group twice. If one of the groups has attribute one_away = True, then use that information to tweak the guess accordingly.
 3. Find all the possible 4-word groups obtainable from the words, given the history of guesses. Each group should come with the grouping reasoning/category.
-4. Out of all the posslbe groups you identified in the previous step, find the best guess. The best guess should be the one for which the grouping pattern has the soundest and cleanest reasoning. You cannot make a previously made guess more than once.
+4. Out of all the posslbe groups you identified in the previous step, find the best guess. The best guess should be the one for which the grouping pattern has the soundest and cleanest reasoning. Make sure that you haven't made this guess already by checking the previous guesses.
+
+Notice: It is very important that you never guess the same 4-word group twice.

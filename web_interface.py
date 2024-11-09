@@ -1,6 +1,12 @@
 import time
+import logging
 from typing import List
 from selenium import webdriver
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    TimeoutException,
+    WebDriverException,
+)
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -25,9 +31,13 @@ class WebInterface:
         Returns:
             WebDriver: Configured WebDriver instance.
         """
-        driver = webdriver.Chrome()
-        driver.maximize_window()
-        return driver
+        try:
+            driver = webdriver.Chrome()
+            driver.maximize_window()
+            return driver
+        except WebDriverException as e:
+            logging.error("An error occurred while setting up the WebDriver: %s", e)
+            raise
 
     def _navigate_to_puzzle(self):
         """Close banners and click buttons to navigate to the puzzle page.
@@ -58,9 +68,14 @@ class WebInterface:
             if close_button.is_displayed():
                 close_button.click()
 
+        except (NoSuchElementException, TimeoutException) as e:
+            logging.error("An error occurred while navigating to the puzzle: %s", e)
+            raise
         except Exception as e:
-            print("An error occurred while navigating to the puzzle:", e)
-            raise Exception("Failed to navigate to the puzzle")
+            logging.error(
+                "An unexpected error occurred while navigating to the puzzle: %s", e
+            )
+            raise
 
     def get_puzzle_words(self) -> List[str]:
         """Fetch today's puzzle words.
@@ -90,9 +105,17 @@ class WebInterface:
 
             return puzzle_words
 
+        except (NoSuchElementException, TimeoutException) as e:
+            logging.error(
+                "An error occurred while fetching today's puzzle words: %s", e
+            )
+            raise
         except Exception as e:
-            print("An error occurred while fetching today's puzzle words:", e)
-            raise Exception("Failed to fetch today's puzzle words")
+            logging.error(
+                "An unexpected error occurred while fetching today's puzzle words: %s",
+                e,
+            )
+            raise
 
     def enter_guess(self, guess_words: List[str], puzzle_words: List[str]):
         """Enter the given words as a guess in the puzzle.
@@ -101,18 +124,27 @@ class WebInterface:
             guess_words (List[str]): The words to enter as a guess.
             puzzle_words (List[str]): All the words in the puzzle.
         """
-        for word in guess_words:
-            index = puzzle_words.index(word)
-            word_button = self.driver.find_element(
-                By.CSS_SELECTOR, f"label[for='inner-card-{index}']"
-            )
-            word_button.click()
-            time.sleep(0.5)
+        try:
+            for word in guess_words:
+                index = puzzle_words.index(word)
+                word_button = self.driver.find_element(
+                    By.CSS_SELECTOR, f"label[for='inner-card-{index}']"
+                )
+                word_button.click()
+                time.sleep(0.5)
 
-        submit_button = self.driver.find_element(
-            By.CSS_SELECTOR, "button[data-testid='submit-btn']"
-        )
-        submit_button.click()
+            submit_button = self.driver.find_element(
+                By.CSS_SELECTOR, "button[data-testid='submit-btn']"
+            )
+            submit_button.click()
+        except (NoSuchElementException, TimeoutException, ValueError) as e:
+            logging.error("An error occurred while entering the guess: %s", e)
+            raise
+        except Exception as e:
+            logging.error(
+                "An unexpected error occurred while entering the guess: %s", e
+            )
+            raise
 
     def check_one_away(self) -> bool:
         """Check if the most recent guess was one word away from being correct.
@@ -126,9 +158,14 @@ class WebInterface:
             if feedback_text and "one away" in feedback_text.lower():
                 return True
             return False
+        except NoSuchElementException:
+            # If the toast element is not found, assume it's not one away
+            return False
         except Exception as e:
-            print("An error occurred while checking if the guess was one away:", e)
-            return None
+            logging.error(
+                "An error occurred while checking if the guess was one away: %s", e
+            )
+            raise
 
     def get_mistakes_left(self) -> int:
         """Get the number of mistakes left before the puzzle is failed.
@@ -141,9 +178,17 @@ class WebInterface:
                 By.CSS_SELECTOR, "span.Mistakes-module_mistakesRemainingBubbles__iTrFU"
             )
             return len(mistakes_span.find_elements(By.TAG_NAME, "span"))
+        except NoSuchElementException as e:
+            logging.error(
+                "An error occurred while getting the number of mistakes left: %s", e
+            )
+            raise
         except Exception as e:
-            print("An error occurred while getting the number of mistakes left:", e)
-            return None
+            logging.error(
+                "An unexpected error occurred while getting the number of mistakes left: %s",
+                e,
+            )
+            raise
 
     def deselect_all_words(self):
         """Deselect all words in the puzzle"""
@@ -152,8 +197,14 @@ class WebInterface:
                 By.CSS_SELECTOR, "button[data-testid='deselect-btn']"
             )
             deselect_button.click()
+        except NoSuchElementException as e:
+            logging.error("An error occurred while deselecting all words: %s", e)
+            raise
         except Exception as e:
-            print("An error occurred while deselecting all words:", e)
+            logging.error(
+                "An unexpected error occurred while deselecting all words: %s", e
+            )
+            raise
 
     def get_outcome_text(self) -> str:
         """Get the outcome text to check if the puzzle is solved.
@@ -165,6 +216,11 @@ class WebInterface:
             h2_element = self.driver.find_element(By.ID, "conn-congrats__title")
             outcome_text = h2_element.text.strip()
             return outcome_text
+        except NoSuchElementException as e:
+            logging.error("An error occurred while getting the outcome text: %s", e)
+            raise
         except Exception as e:
-            print("An error occurred while getting the outcome text:", e)
-            return None
+            logging.error(
+                "An unexpected error occurred while getting the outcome text: %s", e
+            )
+            raise

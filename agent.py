@@ -1,9 +1,12 @@
 import time
+import logging
 from llms import TextGenerator
 from web_interface import WebInterface
 from models import Guess, Puzzle
 
 OUTCOME_TO_GUESSES = {"Perfect!": 4, "Great!": 5, "Solid!": 6, "Phew!": 7}
+
+logging.basicConfig(level=logging.INFO)
 
 
 class Agent:
@@ -21,7 +24,12 @@ class Agent:
         """
         self.web_interface = WebInterface()
         self.text_generator = TextGenerator()
-        self.puzzle = Puzzle(words=self.web_interface.get_puzzle_words())
+        try:
+            puzzle_words = self.web_interface.get_puzzle_words()
+            self.puzzle = Puzzle(words=puzzle_words)
+        except Exception as e:
+            logging.error("An error occurred while initializing the puzzle: %s", e)
+            raise
 
     def _generate_guess(self) -> Guess:
         """Generate guess using OpenAI's GPT
@@ -29,10 +37,14 @@ class Agent:
         Returns:
             Guess: The generated guess.
         """
-        llm_answer = self.text_generator.generate_guess(
-            self.puzzle.words, self.puzzle.guesses
-        )
-        return Guess(words=llm_answer.words, reasoning=llm_answer.reasoning)
+        try:
+            llm_answer = self.text_generator.generate_guess(
+                self.puzzle.words, self.puzzle.guesses
+            )
+            return Guess(words=llm_answer.words, reasoning=llm_answer.reasoning)
+        except Exception as e:
+            logging.error("An error occurred while generating a guess: %s", e)
+            raise
 
     def _get_guess_feedback(self, guess: Guess) -> Guess:
         """Extract the feedback for the most recent guess.
@@ -41,8 +53,7 @@ class Agent:
             guess (Guess): The guess just entered.
 
         Returns:
-            Tuple[bool, bool]: A tuple where the first element is a boolean indicating if the guess was correct,
-                and the second element is a boolean indicating if the guess was one letter away from being correct.
+            Guess: The guess updated with feedback.
         """
         try:
             # Check if one away
@@ -60,14 +71,19 @@ class Agent:
                     self.web_interface.deselect_all_words()
             return guess
         except Exception as e:
-            print("An error occurred while extracting feedback:", e)
+            logging.error("An error occurred while extracting feedback: %s", e)
+            raise
 
     def _make_guess(self):
         """Generate guess using LLM, enter it, get feedback and update the puzzle history."""
-        guess = self._generate_guess()
-        self.web_interface.enter_guess(guess.words, self.puzzle.words)
-        guess = self._get_guess_feedback(guess)
-        self.puzzle.guesses[len(self.puzzle.guesses) + 1] = guess
+        try:
+            guess = self._generate_guess()
+            self.web_interface.enter_guess(guess.words, self.puzzle.words)
+            guess = self._get_guess_feedback(guess)
+            self.puzzle.guesses[len(self.puzzle.guesses) + 1] = guess
+        except Exception as e:
+            logging.error("An error occurred while making a guess: %s", e)
+            raise
 
     def _check_solved(self) -> bool:
         """Check if the puzzle has been solved.
@@ -84,21 +100,36 @@ class Agent:
                 if outcome_guesses == len(self.puzzle.guesses):
                     return True
             except Exception as e:
-                print("An error occurred while checking if the puzzle is solved:", e)
+                logging.error(
+                    "An error occurred while checking if the puzzle is solved: %s", e
+                )
+                raise
         return False
 
     def solve_puzzle(self):
         """Solve the puzzle by making guesses based on the puzzle words."""
         puzzle = self.puzzle
-        while not puzzle.is_solved and puzzle.mistakes_left > 0:
-            self._make_guess()
-            if len(self.puzzle.guesses) >= 4:
-                puzzle.is_solved = self._check_solved()
-            print(puzzle.model_dump())
-
+        try:
+            while not puzzle.is_solved and puzzle.mistakes_left > 0:
+                self._make_guess()
+                if len(self.puzzle.guesses) >= 4:
+                    puzzle.is_solved = self._check_solved()
+                logging.info("Puzzle state: %s", puzzle.model_dump())
+        except Exception as e:
+            logging.error("An error occurred while solving the puzzle: %s", e)
+            raise
+        finally:
+            self.web_interface.driver.close()
         return puzzle.is_solved
 
 
 if __name__ == "__main__":
-    agent = Agent()
-    agent.solve_puzzle()
+    try:
+        agent = Agent()
+        solved = agent.solve_puzzle()
+        if solved:
+            logging.info("Puzzle solved successfully!")
+        else:
+            logging.info("Failed to solve the puzzle.")
+    except Exception as e:
+        logging.error("An error occurred in the main execution: %s", e)

@@ -1,10 +1,12 @@
 import os
+import logging
 from typing import List, Dict
 from openai import OpenAI
 from dotenv import load_dotenv
 from models import LLMAnswer
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
 
 
 class TextGenerator:
@@ -37,8 +39,14 @@ class TextGenerator:
             str: The content of the file
         """
         filepath = os.path.join(os.path.dirname(__file__), "prompts", filename)
-        with open(filepath, "r") as file:
-            return file.read()
+        try:
+            with open(filepath, "r") as file:
+                return file.read()
+        except Exception as e:
+            logging.error(
+                "An error occurred while loading the prompt '%s': %s", filename, e
+            )
+            raise
 
     def generate_reasoning(self, puzzle_input: List[str], guesses: Dict) -> str:
         """Analyze puzzle input and generate reasoning for the next guess.
@@ -50,17 +58,21 @@ class TextGenerator:
         Returns:
             str: reasoning for the next guess
         """
-        user_content = self.reasoning_user_prompt.format(
-            puzzle_input=puzzle_input, guesses=guesses
-        )
-        completion = self.openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": self.reasoning_sys_prompt},
-                {"role": "user", "content": user_content},
-            ],
-        )
-        return completion.choices[0].message.content
+        try:
+            user_content = self.reasoning_user_prompt.format(
+                puzzle_input=puzzle_input, guesses=guesses
+            )
+            completion = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": self.reasoning_sys_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            logging.error("An error occurred while generating reasoning: %s", e)
+            raise
 
     def generate_parsed_answer(self, reasoning: str) -> LLMAnswer:
         """Generate a parsed guess from the reasoning.
@@ -71,16 +83,20 @@ class TextGenerator:
         Returns:
             LLMAnswer: parsed guess
         """
-        user_content = f"LONG_REASONING: {reasoning}\nOUTPUT:"
-        completion = self.openai_client.beta.chat.completions.parse(
-            model="gpt-4o-2024-08-06",
-            messages=[
-                {"role": "system", "content": self.parsing_sys_prompt},
-                {"role": "user", "content": user_content},
-            ],
-            response_format=LLMAnswer,
-        )
-        return completion.choices[0].message.parsed
+        try:
+            user_content = f"LONG_REASONING: {reasoning}\nOUTPUT:"
+            completion = self.openai_client.beta.chat.completions.parse(
+                model="gpt-4o-2024-08-06",
+                messages=[
+                    {"role": "system", "content": self.parsing_sys_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                response_format=LLMAnswer,
+            )
+            return completion.choices[0].message.parsed
+        except Exception as e:
+            logging.error("An error occurred while parsing the answer: %s", e)
+            raise
 
     def generate_guess(self, puzzle_input: List[str], guesses: Dict) -> LLMAnswer:
         """Generate a guess based on the puzzle input and previous guesses using Chain-of-Thought.
@@ -92,43 +108,9 @@ class TextGenerator:
         Returns:
             LLMAnswer: parsed guess
         """
-        reasoning = self.generate_reasoning(puzzle_input, guesses)
-        return self.generate_parsed_answer(reasoning)
-
-
-if __name__ == "__main__":
-    text_generator = TextGenerator()
-    puzzle_input = [
-        "WHIRL",
-        "DRAW",
-        "NAVY",
-        "LIVER",
-        "CAR",
-        "KIDNEY",
-        "HOOK",
-        "DRIVE",
-        "PINTO",
-        "PULL",
-        "NEUTRAL",
-        "DEAD",
-        "LOW",
-        "MUNG",
-        "GRAB",
-        "REVERSE",
-    ]
-    guesses = {
-        1: {
-            "last_guess": ["MUNG", "PINTO", "KIDNEY", "NAVY"],
-            "correct": True,
-            "one_away": False,
-        },
-        2: {
-            "last_guess": ["WHIRL", "DRAW", "PULL", "GRAB"],
-            "correct": False,
-            "one_away": False,
-        },
-    }
-    # reasoning = text_generator.generate_reasoning(puzzle_input, guesses)
-    # print(reasoning)
-    guess = text_generator.generate_guess(puzzle_input, guesses)
-    print(guess)
+        try:
+            reasoning = self.generate_reasoning(puzzle_input, guesses)
+            return self.generate_parsed_answer(reasoning)
+        except Exception as e:
+            logging.error("An error occurred while generating a guess: %s", e)
+            raise
